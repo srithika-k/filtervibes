@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Photo Filter </title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
+      background-size: 400% 400%;
+      animation: bgAnimation 10s ease infinite;
+      color: #00ffe1;
+      font-family: 'Orbitron', sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    @keyframes bgAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    h1 {
+      font-size: 42px;
+      color: #ffffff;
+      text-shadow: 0 0 10px cyan;
+    }
+
+    .upload-section, .photo-section, .filter-sliders, .text-overlay, .stickers, .buttons {
+      margin: 20px;
+    }
+
+    .upload-section {
+      border: 2px dashed #00ffe1;
+      padding: 20px;
+      border-radius: 20px;
+      background: rgba(0, 255, 255, 0.05);
+    }
+
+    input[type="file"], input[type="text"], input[type="color"], input[type="number"], button {
+      padding: 10px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    input[type="file"] {
+      background: #00ffe1;
+      color: black;
+    }
+
+    canvas {
+      max-width: 80%;
+      border: 2px solid #00ffe1;
+      border-radius: 20px;
+      box-shadow: 0 0 30px cyan, 0 0 60px purple;
+      transition: 0.5s;
+      position: relative;
+      z-index: 0;
+    }
+
+    .canvas-glow {
+      animation: pulseGlow 2s infinite alternate;
+    }
+
+    @keyframes pulseGlow {
+      from {
+        box-shadow: 0 0 20px #00ffe1, 0 0 40px #ff00aa;
+      }
+      to {
+        box-shadow: 0 0 40px #00ffe1, 0 0 80px #ff00aa;
+      }
+    }
+
+    .filter-sliders label {
+      display: block;
+      margin: 10px;
+      font-size: 18px;
+    }
+
+    input[type="range"] {
+      width: 50%;
+    }
+
+    button {
+      background: linear-gradient(90deg, #00ffe1, #ff00aa);
+      color: black;
+      transition: 0.4s;
+    }
+
+    button:hover {
+      transform: scale(1.1);
+      background: linear-gradient(90deg, #ff00aa, #00ffe1);
+      color: white;
+    }
+
+    .stickers img {
+      width: 60px;
+      margin: 5px;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+
+    .stickers img:hover {
+      transform: scale(1.2);
+      filter: drop-shadow(0 0 5px #ff00aa);
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .draggable {
+      position: absolute;
+      cursor: move;
+      pointer-events: auto;
+    }
+
+    .draggable img {
+      width: 100px;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      background: red;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <h1>📷 Photo Filter Pro 🎨</h1>
+
+  <div class="upload-section">
+    <p>Drag & Drop your Image or Choose File</p>
+    <input type="file" id="upload">
+  </div>
+
+  <div class="photo-section" style="position: relative;">
+    <canvas id="canvas" class="canvas-glow"></canvas>
+    <div id="overlay" class="overlay"></div>
+  </div>
+
+  <div class="filter-sliders">
+    <label>Brightness <input type="range" id="brightness" min="0" max="200" value="100"></label>
+    <label>Contrast <input type="range" id="contrast" min="0" max="200" value="100"></label>
+    <label>Saturation <input type="range" id="saturation" min="0" max="200" value="100"></label>
+    <label>Hue Rotate <input type="range" id="hue" min="0" max="360" value="0"></label>
+    <label>Blur <input type="range" id="blur" min="0" max="10" value="0"></label>
+    <label>Black & White <input type="checkbox" id="bwToggle"></label>
+  </div>
+
+  <div class="text-overlay">
+    <input type="text" id="textInput" placeholder="Add text...">
+    <input type="color" id="textColor" value="#ff00aa">
+    <input type="number" id="fontSize" value="30" min="10" max="100">
+    <button onclick="addText()">Add Text</button>
+  </div>
+
+  <div class="stickers">
+    <img src="Idhaya Template.jpg" onclick="addSticker(this.src)">
+    <img src="stick1.webp" onclick="addSticker(this.src)">
+    <img src="https://cdn-icons-png.flaticon.com/256/8663/8663461.png" onclick="addSticker(this.src)">
+    <img src="https://png.pngtree.com/png-vector/20220510/ourmid/pngtree-admission-open-tag-abstract-shape-png-png-image_4566492.png" onclick="addSticker(this.src)">
+  </div>
+
+  <div class="buttons">
+    <button onclick="reset()">Reset</button>
+    <button onclick="downloadImage()">Download Image</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let originalImage = null;
+
+    document.getElementById('upload').addEventListener('change', handleUpload);
+
+    function handleUpload(e) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          resetFilters();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function reset() {
+      if (originalImage) {
+        ctx.putImageData(originalImage, 0, 0);
+        resetFilters();
+        document.getElementById('overlay').innerHTML = '';
+      }
+    }
+
+    function downloadImage() {
+      const link = document.createElement('a');
+      link.download = 'filtered-photo.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    function applyFilters() {
+      const brightness = document.getElementById('brightness').value;
+      const contrast = document.getElementById('contrast').value;
+      const saturation = document.getElementById('saturation').value;
+      const hue = document.getElementById('hue').value;
+      const blur = document.getElementById('blur').value;
+      const bw = document.getElementById('bwToggle').checked;
+
+      canvas.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${bw ? 0 : saturation}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+    }
+
+    function resetFilters() {
+      document.getElementById('brightness').value = 100;
+      document.getElementById('contrast').value = 100;
+      document.getElementById('saturation').value = 100;
+      document.getElementById('hue').value = 0;
+      document.getElementById('blur').value = 0;
+      document.getElementById('bwToggle').checked = false;
+      canvas.style.filter = 'none';
+    }
+
+    document.querySelectorAll('input[type=range], input[type=checkbox]').forEach(control => {
+      control.addEventListener('input', applyFilters);
+    });
+
+    function addText() {
+      const text = document.getElementById('textInput').value;
+      const color = document.getElementById('textColor').value;
+      const size = document.getElementById('fontSize').value;
+
+      if (!text) return;
+
+      const overlay = document.getElementById('overlay');
+      const div = document.createElement('div');
+      div.className = 'draggable';
+      div.contentEditable = true;
+      div.style.color = color;
+      div.style.fontSize = `${size}px`;
+      div.style.left = '50px';
+      div.style.top = '50px';
+      div.innerText = text;
+
+      const deleteBtn = document.createElement('div');
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.innerText = '×';
+      deleteBtn.onclick = () => div.remove();
+
+      div.appendChild(deleteBtn);
+      makeDraggable(div);
+      overlay.appendChild(div);
+    }
+
+    function addSticker(src) {
+      const overlay = document.getElementById('overlay');
+      const container = document.createElement('div');
+      container.className = 'draggable';
+      container.style.left = '100px';
+      container.style.top = '100px';
+      container.style.width = '100px';
+      container.style.height = '100px';
+
+      const img = document.createElement('img');
+      img.src = src;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.pointerEvents = 'none';
+      container.appendChild(img);
+
+      const deleteBtn = document.createElement('div');
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.innerText = '×';
+      deleteBtn.onclick = () => container.remove();
+      container.appendChild(deleteBtn);
+
+      const resizeHandle = document.createElement('div');
+      resizeHandle.style.position = 'absolute';
+      resizeHandle.style.right = '-5px';
+      resizeHandle.style.bottom = '-5px';
+      resizeHandle.style.width = '15px';
+      resizeHandle.style.height = '15px';
+      resizeHandle.style.background = '#00ffe1';
+      resizeHandle.style.border = '2px solid #fff';
+      resizeHandle.style.cursor = 'se-resize';
+      resizeHandle.style.borderRadius = '50%';
+      container.appendChild(resizeHandle);
+
+      resizeHandle.addEventListener('mousedown', function (e) {
+        e.stopPropagation();
+        let startX = e.clientX;
+        let startY = e.clientY;
+        let startWidth = container.offsetWidth;
+        let startHeight = container.offsetHeight;
+
+        function onMouseMove(e) {
+          const newWidth = startWidth + (e.clientX - startX);
+          const newHeight = startHeight + (e.clientY - startY);
+          container.style.width = newWidth + 'px';
+          container.style.height = newHeight + 'px';
+        }
+
+        function onMouseUp() {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+
+      makeDraggable(container);
+      overlay.appendChild(container);
+    }
+
+    function makeDraggable(el) {
+      el.onmousedown = function (e) {
+        let offsetX = e.clientX - el.getBoundingClientRect().left;
+        let offsetY = e.clientY - el.getBoundingClientRect().top;
+
+        function mouseMoveHandler(e) {
+          el.style.left = `${e.clientX - offsetX}px`;
+          el.style.top = `${e.clientY - offsetY}px`;
+        }
+
+        function mouseUpHandler() {
+          document.removeEventListener('mousemove', mouseMoveHandler);
+          document.removeEventListener('mouseup', mouseUpHandler);
+        }
+
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+      };
+    }
+  </script>
+</body>
+</html>
